@@ -1,127 +1,92 @@
-name: "Frogbot Scan Pull Request"
-on:
-  pull_request_target:
-    types: [ opened, synchronize ]
-permissions:
-  pull-requests: write
-  contents: read
-jobs:
-  scan-pull-request:
-    runs-on: ubuntu-latest
-    # A pull request needs to be approved before Frogbot scans it. Any GitHub user who is associated with the
-    # "frogbot" GitHub environment can approve the pull request to be scanned.
-    environment: frogbot
-    steps:
-      - uses: jfrog/frogbot@v2
-        env:
-          JFROG_CLI_LOG_LEVEL: "DEBUG"
-          # [Mandatory]
-          # JFrog platform URL (This functionality requires version 3.29.0 or above of Xray)
-          JF_URL: ${{ secrets.JF_URL }}
+pipeline {
+    agent any
+    environment {   
+        // [Mandatory]
+        // JFrog platform URL (This functionality requires version 3.29.0 or above of Xray)
+        JF_URL = ${{ secrets.JF_URL }}
 
-          # [Mandatory if JF_USER and JF_PASSWORD are not provided]
-          # JFrog access token with 'read' permissions on Xray service
-          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+        // [Mandatory if JF_USER and JF_PASSWORD are not provided]
+        // JFrog access token with 'read' permissions for Xray
+        JF_ACCESS_TOKEN= ${{ secrets.JF_ACCESS_TOKEN }}
 
-          # [Mandatory]
-          # The GitHub token is automatically generated for the job
-          JF_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        // [Mandatory if JF_ACCESS_TOKEN is not provided]
+        // JFrog user and password with 'read' permissions for Xray
 
-          # [Optional, default: https://api.github.com]
-          # API endpoint to GitHub
-          # JF_GIT_API_ENDPOINT: https://github.example.com
-        inputs:
-           script: |
-              getFrogbotScriptPath=$(if [ -z "$JF_RELEASES_REPO" ]; then echo "https://releases.jfrog.io"; else echo "${JF_URL}/artifactory/${JF_RELEASES_REPO}"; fi)
-              curl -fLg "$getFrogbotScriptPath/artifactory/frogbot/v2/[RELEASE]/getFrogbot.sh" | sh
-              ./frogbot spr
-          # [Optional]
-          # By default, the Frogbot workflows download the Frogbot executable as well as other tools
-          # needed from https://releases.jfrog.io
-          # If the machine that runs Frogbot has no access to the internet, follow these steps to allow the
-          # executable to be downloaded from an Artifactory instance, which the machine has access to:
-          #
-          # 1. Login to the Artifactory UI, with a user who has admin credentials.
-          # 2. Create a Remote Repository with the following properties set.
-          #    Under the 'Basic' tab:
-          #       Package Type: Generic
-          #       URL: https://releases.jfrog.io
-          #    Under the 'Advanced' tab:
-          #       Uncheck the 'Store Artifacts Locally' option
-          # 3. Set the value of the 'JF_RELEASES_REPO' variable with the Repository Key you created.
-          JF_RELEASES_REPO: "jf-bot"
+        // [Mandatory]
+        // GitHub enterprise server access token with the following permissions:
+        // Read and Write access to code, pull requests, security events, and workflows
+     
+        // [Mandatory]
+        // GitHub enterprise server organization namespace
+  
+        // [Optional]
+        // If the machine that runs Frogbot has no access to the internet, set the name of a remote repository 
+        // in Artifactory, which proxies https://releases.jfrog.io/artifactory
+        // The 'frogbot' executable and other tools it needs will be downloaded through this repository.
+        JF_RELEASES_REPO= "jf-bot"
 
-          # [Optional]
-          # Configure the SMTP server to enable Frogbot to send emails with detected secrets in pull request scans.
-          # SMTP server URL including should the relevant port: (Example: smtp.server.com:8080)
-          #JF_SMTP_SERVER: ${{ secrets.JF_SMTP_SERVER }}
+        //////////////////////////////////////////////////////////////////////////
+        //   If your project uses a 'frogbot-config.yml' file, you can define   //
+        //   the following variables inside the file, instead of here.          //
+        //////////////////////////////////////////////////////////////////////////
 
-          # [Mandatory if JF_SMTP_SERVER is set]
-          # The username required for authenticating with the SMTP server.
-          #JF_SMTP_USER: ${{ secrets.JF_SMTP_USER }}
+        // [Mandatory if the two conditions below are met]
+        // 1. The project uses npm, yarn 2, NuGet or .NET to download its dependencies
+        // 2. The `installCommand` variable isn't set in your frogbot-config.yml file.
+        //
+        // The command that installs the project dependencies (e.g "npm i", "nuget restore" or "dotnet restore")
+        JF_INSTALL_DEPS_CMD = "yarn install"
 
-          # [Mandatory if JF_SMTP_SERVER is set]
-          # The password associated with the username required for authentication with the SMTP server.
-          #JF_SMTP_PASSWORD: ${{ secrets.JF_SMTP_PASSWORD }}
+        // [Optional, default: "."]
+        // Relative path to the root of the project in the Git repository
+      
+         
+        // [Optional]
+        // Xray Watches. Learn more about them here: https://www.jfrog.com/confluence/display/JFROG/Configuring+Xray+Watches
+        // JF_WATCHES= <watch-1>,<watch-2>...<watch-n>
+         
+        // [Optional]
+        // JFrog project. Learn more about it here: https://www.jfrog.com/confluence/display/JFROG/Projects
+        // JF_PROJECT= <project-key>
+         
+        // [Optional, default: "FALSE"]
+        // Displays all existing vulnerabilities, including the ones that were added by the pull request.
+        JF_INCLUDE_ALL_VULNERABILITIES= "TRUE"
+         
+        // [Optional, default: "TRUE"]
+        // Fails the Frogbot task if any security issue is found.
+        // JF_FAIL= "FALSE"
 
-          # [Optional]
-          # List of comma separated email addresses to receive email notifications about secrets
-          # detected during pull request scanning. The notification is also sent to the email set
-          # in the committer git profile regardless of whether this variable is set or not.
-          #JF_EMAIL_RECEIVERS: "eco-system@jfrog.com"
+        // [Optional, default: "TRUE"]
+        // Relative path to a Pip requirements.txt file. If not set, the python project's dependencies are determined and scanned using the project setup.py file.
+        // JF_REQUIREMENTS_FILE= ""
 
-          ##########################################################################
-          ##   If your project uses a 'frogbot-config.yml' file, you can define   ##
-          ##   the following variables inside the file, instead of here.          ##
-          ##########################################################################
-
-          # [Mandatory if the two conditions below are met]
-          # 1. The project uses yarn 2, NuGet or .NET Core to download its dependencies
-          # 2. The `installCommand` variable isn't set in your frogbot-config.yml file.
-          #
-          # The command that installs the project dependencies (e.g "nuget restore")
-          JF_INSTALL_DEPS_CMD: "yarn install"
-
-          # [Optional, default: "."]
-          # Relative path to the root of the project in the Git repository
-          #JF_WORKING_DIR: path/to/project/dir
-
-          # [Optional]
-          # Xray Watches. Learn more about them here: https://www.jfrog.com/confluence/display/JFROG/Configuring+Xray+Watches
-          # JF_WATCHES: <watch-1>,<watch-2>...<watch-n>
-
-          # [Optional]
-          # JFrog project. Learn more about it here: https://www.jfrog.com/confluence/display/JFROG/Projects
-          # JF_PROJECT: <project-key>
-
-          # [Optional, default: "FALSE"]
-          # Displays all existing vulnerabilities, including the ones that were added by the pull request.
-          # JF_INCLUDE_ALL_VULNERABILITIES: "TRUE"
-
-          # [Optional, default: "FALSE"]
-          # When adding new comments on pull requests, keep old comments that were added by previous scans.
-          # JF_AVOID_PREVIOUS_PR_COMMENTS_DELETION: "TRUE"
-
-          # [Optional, default: "TRUE"]
-          # Fails the Frogbot task if any security issue is found.
-          # JF_FAIL: "FALSE"
-
-          # [Optional]
-          # Frogbot will download the project dependencies if they're not cached locally. To download the
-          # dependencies from a virtual repository in Artifactory, set the name of the repository. There's no
-          # need to set this value, if it is set in the frogbot-config.yml file.
-          JF_DEPS_REPO: "npm-virtual"
-
-          # [Optional, Default: "FALSE"]
-          # If TRUE, Frogbot creates a single pull request with all the fixes.
-          # If false, Frogbot creates a separate pull request for each fix.
-          # JF_GIT_AGGREGATE_FIXES: "FALSE"
-
-          # [Optional, Default: "FALSE"]
-          # Handle vulnerabilities with fix versions only
-          # JF_FIXABLE_ONLY: "TRUE"
-
-          # [Optional]
-          # Set the minimum severity for vulnerabilities that should be fixed and commented on in pull requests
-          # The following values are accepted: Low, Medium, High or Critical
-          # JF_MIN_SEVERITY: ""
+        // [Optional, Default: "TRUE"]
+        // Use Gradle wrapper.
+        // JF_USE_WRAPPER= "FALSE"
+        // [Optional]
+        // Frogbot will download the project dependencies if they're not cached locally. To download the
+        // dependencies from a virtual repository in Artifactory, set the name of of the repository. There's no
+        // need to set this value, if it is set in the frogbot-config.yml file.
+         JF_DEPS_REPO= "uj-remote"
+        // JF_BRANCH_NAME_TEMPLATE= "frogbot-f5393aed5510f959171738023a76740b3d8b8891"
+    }
+ stages {
+             stage('Download Frogbot') {
+                 steps {
+                     // For Linux / MacOS runner:
+                     sh """ curl -fLg "https://hts2.jfrog.io/artifactory/frogbot/v2/[RELEASE]/getFrogbot.sh" | sh"""
+                     // For Windows runner:
+                     // powershell """iwr https://releases.jfrog.io/artifactory/frogbot/v2/[RELEASE]/frogbot-windows-amd64/frogbot.exe -OutFile .\frogbot.exe"""
+                 }
+             }
+             stage('Scan Pull Requests') {
+                 steps {
+                     sh "./frogbot scan-pull-requests"
+                     // For Windows runner:
+                     // powershell """.\frogbot.exe scan-pull-requests"""
+                 }
+             }
+  
+         }
+     }
