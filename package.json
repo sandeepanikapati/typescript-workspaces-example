@@ -1,5 +1,5 @@
 {
-  "name": "typescript-workspaces-example",
+  "name": "typescript-workspaces-example7",
   "packageManager": "yarn@3.1.1",
   "workspaces": [
     "hello-lib",
