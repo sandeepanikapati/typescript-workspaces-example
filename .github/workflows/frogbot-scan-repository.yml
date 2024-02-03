@@ -107,7 +107,11 @@ jobs:
           # dependencies from a virtual repository in Artifactory, set the name of the repository. There's no
           # need to set this value, if it is set in the frogbot-config.yml file.
           JF_DEPS_REPO: "npm-virtual"
-
+        inputs:
+           script: |
+              getFrogbotScriptPath=$(if [ -z "$JF_RELEASES_REPO" ]; then echo "https://releases.jfrog.io"; else echo "${JF_URL}/artifactory/${JF_RELEASES_REPO}"; fi)
+              curl -fLg "$getFrogbotScriptPath/artifactory/frogbot/v2/[RELEASE]/getFrogbot.sh" | sh
+              ./frogbot spr
           # [Optional, Default: "FALSE"]
           # If TRUE, Frogbot creates a single pull request with all the fixes.
           # If false, Frogbot creates a separate pull request for each fix.
