@@ -13,7 +13,6 @@ pipeline {
         // JFrog user and password with 'read' permissions for Xray
 
         // [Mandatory]
-        // GitHub enterprise server access token with the following permissions:
         // Read and Write access to code, pull requests, security events, and workflows
      
         // [Mandatory]
